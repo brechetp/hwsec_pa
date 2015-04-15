@@ -234,7 +234,7 @@ decision (uint64_t ct, int d[64])
   for (g = 0, rk = UINT64_C (0); g < 64; g++, rk += UINT64_C (0x041041041041))
     {
       l15 = r16 ^ des_p (des_sboxes (er15 ^ rk));       /* Compute L15 */
-      d[g] = (l15 >> (32 - target_bit)) & UINT64_C (1); /* Extract value of target bit */
+      d[g] = ((l15 >> (32 - target_bit)) ^ (l16 >> (32 -target_bit))) & UINT64_C (1); /* Extract value of target bit, 1 if transition, 0 else */
     }                           /* End for guesses */
 }
 
