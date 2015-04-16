@@ -81,7 +81,12 @@ void average (char *prefix);
  * an intermediate DES data, one per guess on a 6-bits subkey. In this example
  * the decision is the computed value of bit index <target_bit> of L15. Each of
  * the 64 decisions is thus 0 or 1.*/
-void decision (uint64_t ct, int d[64]);
+void decision (uint64_t ct, tr_pcc_context pcc_ctx, int sbox);
+
+/* Filtered_ham_dist: takes two 32 bit numbers and an SBox number and returns
+ * the Hamming distance between the two SBOX outputs */
+
+int filtered_ham_dist (uint64_t r_1, uint64_t r2, int sbox);
 
 /* Apply P. Kocher's DPA algorithm based on decision function. Computes 64 DPA
  * traces dpa[0..63], best_guess (6-bits subkey corresponding to highest DPA
@@ -216,7 +221,7 @@ average (char *prefix)
 }
 
 void
-decision (uint64_t ct, pcc_context pcc_ctx, int sbox)
+decision (uint64_t ct, tr_pcc_context pcc_ctx, int sbox)
 {
   int g;                        /* Guess */
   float h_d;                    /* Hamming distance (our PCC classes) */
@@ -237,7 +242,7 @@ decision (uint64_t ct, pcc_context pcc_ctx, int sbox)
    * subkeys equal to current guess g (nice trick, isn't it?). */
   for (g = 0, rk = UINT64_C (0); g < 64; g++, rk += UINT64_C (0x041041041041))
     {
-      l15 = r16 ^ ( des_p (des_s_boxes (er15 ^ rk)));     /* computes hyp. l15 */
+      l15 = r16 ^ ( des_p (des_sboxes (er15 ^ rk)));     /* computes hyp. l15 */
 
       h_d = (float) filtered_ham_dist(l15, l16, sbox);      /* Hamming distance between SBoxes outputs */
       tr_pcc_insert_y(pcc_ctx, g, h_d);     /* Insert realization h_d of rv# g */
@@ -253,16 +258,18 @@ filtered_ham_dist (uint64_t r_1, uint64_t r_2, int sbox)
   np_r1 = des_n_p(r_1);
   np_r2 = des_n_p(r_2);
 
-  return hamming_distance ((np_r1 >> (sbox-1)*4) & UINT64_C (0xf), (np_r2 >> (sbox-1)*4) & UINT64_C (0xf)) 
+  return hamming_distance ((np_r1 >> (sbox-1)*4) & UINT64_C (0xf), (np_r2 >> (sbox-1)*4) & UINT64_C (0xf)) ;
+}
 
 
 void
 dpa_attack (void)
 {
-  int i;                        /* Loop index */
+  int i, j;                        /* Loop index */
   int n;                        /* Number of traces. */
   int g;                        /* Guess on a 6-bits subkey */
   int idx;                      /* Argmax (index of sample with maximum value in a trace) */
+  int sbox;                     /* SBox # */
 
   float *t;                     /* Power trace */
   float max;                    /* Max sample value in a trace */
@@ -291,6 +298,19 @@ dpa_attack (void)
       }                           /* End for experiments */
     tr_pcc_consolidate(pcc_ctx);
 
-
+    for(i = 0; i < 64; i++)
+    {
+      float *pcc;
+      pcc = tr_pcc_get_pcc(pcc_ctx, i);
+      printf("PCC(X[.], Y%d)[.] =", i);
+      for(j = 0; j < 800; j++)
+      {
+        printf(" %lf", pcc[j]);
+        printf("\n");
+      }
     }
+  }
+
+
+    
 }
