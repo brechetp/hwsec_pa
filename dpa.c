@@ -39,6 +39,7 @@ information see the LICENCE-fr.txt or LICENSE-en.txt files.
 #include <inttypes.h>
 #include <string.h>
 
+#include <tr_pcc.h>
 #include <utils.h>
 #include <traces.h>
 #include <des.h>
@@ -215,15 +216,18 @@ average (char *prefix)
 }
 
 void
-decision (uint64_t ct, int d[64])
+decision (uint64_t ct, pcc_context pcc_ctx, int sbox)
 {
   int g;                        /* Guess */
+  float h_d;                    /* Hamming distance (our PCC classes) */
   uint64_t r16l16;              /* R16|L16 (64 bits state register before final permutation) */
   uint64_t l16;                 /* L16 (as in DES standard) */
   uint64_t r16;                 /* R16 (as in DES standard) */
   uint64_t er15;                /* E(R15) = E(L16) */
   uint64_t l15;                 /* L15 (as in DES standard) */
+  uint64_t r14_j, r15_j;
   uint64_t rk;                  /* Value of last round key */
+
 
   r16l16 = des_ip (ct);         /* Compute R16|L16 */
   l16 = des_right_half (r16l16);        /* Extract right half */
@@ -233,10 +237,24 @@ decision (uint64_t ct, int d[64])
    * subkeys equal to current guess g (nice trick, isn't it?). */
   for (g = 0, rk = UINT64_C (0); g < 64; g++, rk += UINT64_C (0x041041041041))
     {
-      l15 = r16 ^ des_p (des_sboxes (er15 ^ rk));       /* Compute L15 */
-      d[g] = ((l15 >> (32 - target_bit)) ^ (l16 >> (32 -target_bit))) & UINT64_C (1); /* Extract value of target bit, 1 if transition, 0 else */
+      l15 = r16 ^ ( des_p (des_s_boxes (er15 ^ rk)));     /* computes hyp. l15 */
+
+      h_d = (float) filtered_ham_dist(l15, l16, sbox);      /* Hamming distance between SBoxes outputs */
+      tr_pcc_insert_y(pcc_ctx, g, h_d);     /* Insert realization h_d of rv# g */
+
     }                           /* End for guesses */
 }
+
+int
+filtered_ham_dist (uint64_t r_1, uint64_t r_2, int sbox)
+{
+  uint64_t np_r1, np_r2;
+
+  np_r1 = des_n_p(r_1);
+  np_r2 = des_n_p(r_2);
+
+  return hamming_distance ((np_r1 >> (sbox-1)*4) & UINT64_C (0xf), (np_r2 >> (sbox-1)*4) & UINT64_C (0xf)) 
+
 
 void
 dpa_attack (void)
@@ -245,69 +263,34 @@ dpa_attack (void)
   int n;                        /* Number of traces. */
   int g;                        /* Guess on a 6-bits subkey */
   int idx;                      /* Argmax (index of sample with maximum value in a trace) */
-  int d[64];                    /* Decisions on the target bit */
 
   float *t;                     /* Power trace */
   float max;                    /* Max sample value in a trace */
-  float *t0[64];                /* Power traces for the zero-sets (one per guess) */
-  float *t1[64];                /* Power traces for the one-sets (one per guess) */
 
-  int n0[64];                   /* Number of power traces in the zero-sets (one per guess) */
-  int n1[64];                   /* Number of power traces in the one-sets (one per guess) */
+  tr_pcc_context pcc_ctx;
 
   uint64_t ct;                  /* Ciphertext */
 
-  for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
-    {
-      dpa[g] = tr_new_trace (ctx);      /* Allocate a DPA trace */
-      t0[g] = tr_new_trace (ctx);       /* Allocate a trace for zero-set */
-      tr_init_trace (ctx, t0[g], 0.0);  /* Initialize trace to all zeros */
-      n0[g] = 0;                /* Initialize trace count in zero-set to zero */
-      t1[g] = tr_new_trace (ctx);       /* Allocate a trace for one-set */
-      tr_init_trace (ctx, t1[g], 0.0);  /* Initialize trace to all zeros */
-      n1[g] = 0;                /* Initialize trace count in one-set to zero */
-    }                           /* End for all guesses */
   n = tr_number (ctx);          /* Number of traces in context */
-  for (i = 0; i < n; i++)       /* For all experiments */
-    {
-      t = tr_trace (ctx, i);    /* Get power trace */
-      ct = tr_ciphertext (ctx, i);      /* Get ciphertext */
-      decision (ct, d);         /* Compute the 64 decisions */
-      /* For all guesses (64) */
-      for (g = 0; g < 64; g++)
-        {
-          if (d[g] == 0)        /* If decision on target bit is zero */
-            {
-              tr_acc (ctx, t0[g], t);   /* Accumulate power trace in zero-set */
-              n0[g] += 1;       /* Increment traces count for zero-set */
-            }
-          else                  /* If decision on target bit is one */
-            {
-              tr_acc (ctx, t1[g], t);   /* Accumulate power trace in one-set */
-              n1[g] += 1;       /* Increment traces count for one-set */
-            }
-        }                       /* End for guesses */
-    }                           /* End for experiments */
-  best_guess = 0;               /* Initialize best guess */
-  best_max = 0.0;               /* Initialize best maximum sample */
-  best_idx = 0;                 /* Initialize best argmax (index of maximum sample) */
-  for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
-    {
-      tr_scalar_div (ctx, t0[g], t0[g], (float) (n0[g]));       /* Normalize zero-set */
-      tr_scalar_div (ctx, t1[g], t1[g], (float) (n1[g]));       /* Normalize zero-set */
-      tr_sub (ctx, dpa[g], t1[g], t0[g]);       /* Compute one-set minus zero-set */
-      max = tr_max (ctx, dpa[g], &idx); /* Get max and argmax of DPA trace */
-      if (max > best_max || g == 0)     /* If better than current best max (or if first guess) */
-        {
-          best_max = max;       /* Overwrite best max with new one */
-          best_idx = idx;       /* Overwrite best argmax with new one */
-          best_guess = g;       /* Overwrite best guess with new one */
-        }
-    }                           /* End for all guesses */
-  /* Free allocated traces */
-  for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
-    {
-      tr_free_trace (ctx, t0[g]);
-      tr_free_trace (ctx, t1[g]);
+  for (sbox = 1; sbox <= 8; sbox++) /* For all SBoxes */
+  {
+
+    pcc_ctx = tr_pcc_init(800, 64);   /* 800 samples per power trace, 64 r.v */
+    for (i = 0; i < n; i++)       /* For all experiments */
+      {
+        t = tr_trace (ctx, i);    /* Get power trace */
+        ct = tr_ciphertext (ctx, i);      /* Get ciphertext */
+
+        tr_pcc_insert_x(pcc_ctx, t);      /* insert the trace in the Pearson context */
+
+        decision(ct, pcc_ctx, sbox);      /* fills the PC with Y realizations */
+
+
+
+
+      }                           /* End for experiments */
+    tr_pcc_consolidate(pcc_ctx);
+
+
     }
 }
