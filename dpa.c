@@ -149,7 +149,6 @@ main (int argc, char **argv)
    * and heaxdecimal forms of the 6 bits best guess.
    *****************************************************************************/
   /* Plot DPA traces in dpa.dat, gnuplot commands in dpa.cmd */
- /* tr_plot (ctx, "dpa", 64, best_guess, dpa);*/
 
   /*****************
    * Print summary *
@@ -270,9 +269,10 @@ dpa_attack (void)
   uint64_t ct;                  /* Ciphertext */
 
   n = tr_number (ctx);          /* Number of traces in context */
-  for (sbox = 1; sbox <= 8; sbox++) /* For all SBoxes */
-  {
+  //for (sbox = 1; sbox <= 8; sbox++) /* For all SBoxes */
+  //{
 
+    sbox=1;
     pcc_ctx = tr_pcc_init(800, 64);   /* 800 samples per power trace, 64 r.v */
     for (i = 0; i < n; i++)       /* For all experiments */
       {
@@ -291,17 +291,22 @@ dpa_attack (void)
 
     for(i = 0; i < 64; i++)
     {
-      float *pcc;
-      pcc = tr_pcc_get_pcc(pcc_ctx, i);
-      printf("PCC(X[.], Y%d)[.] =", i);
-      for(j = 22*25; j < 25*25; j++)
+      float *trace;
+      trace = tr_pcc_get_pcc(pcc_ctx, i); /* we get the PCC trace */
+      dpa[i] = tr_new_trace(ctx);
+      tr_acc(ctx, dpa[i], trace);
+      tr_abs(ctx, dpa[i], dpa[i]);
+      max = tr_max(ctx, dpa[i], &idx);
+      if ((max > best_max && idx > 550 && idx < 600) || i==0)
       {
-        printf(" %lf", pcc[j]);
-        printf("\n");
+        best_max = max;
+        best_guess = i;
+        best_idx = idx;
       }
-      printf("*********************************\n");
+
     }
-  }
+    tr_plot(ctx, "dpa", 64, best_guess, dpa);
+  //}
 
 
     
