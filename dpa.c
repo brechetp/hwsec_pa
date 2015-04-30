@@ -113,7 +113,7 @@ main (int argc, char **argv)
   /*************************************/
   /* If invalid number of arguments (including program name), exit with error
    * message. */
-  if (argc != 4)
+  if (argc != 3)
     {
       ERROR (-1, "usage: dpa <file> <n> <b>\n  <file>: name of the traces file in HWSec format\n          (e.g. /datas/teaching/courses/HWSec/labs/data/HWSecTraces10000x00800.hws)\n  <n>: number of experiments to use\n  <b>: index of target bit in L15 (1 to 32, as in DES standard)\n");
     }
@@ -124,15 +124,7 @@ main (int argc, char **argv)
     {
       ERROR (-1, "invalid number of experiments: %d (shall be greater than 1)", n);
     }
-  /* Target bit is argument #3, convert it to integer and store the result in
-   * variable target_bit. */
-  target_bit = atoi (argv[3]);
-  if (target_bit < 1 || target_bit > 32)        /* If invalid target bit index. */
-    {
-      ERROR (-1, "invalid target bit index: %d (shall be between 1 and 32 included)", target_bit);
-    }
   /* Compute index of corresponding SBox */
-  target_sbox = (p_table[target_bit - 1] - 1) / 4 + 1;
   /* Read power traces and ciphertexts. Name of data file is argument #1. n is
    * the number of experiments to use. */
   read_datafile (argv[1], n);
@@ -157,7 +149,7 @@ main (int argc, char **argv)
    * and heaxdecimal forms of the 6 bits best guess.
    *****************************************************************************/
   /* Plot DPA traces in dpa.dat, gnuplot commands in dpa.cmd */
-  tr_plot (ctx, "dpa", 64, best_guess, dpa);
+ /* tr_plot (ctx, "dpa", 64, best_guess, dpa);*/
 
   /*****************
    * Print summary *
@@ -302,11 +294,12 @@ dpa_attack (void)
       float *pcc;
       pcc = tr_pcc_get_pcc(pcc_ctx, i);
       printf("PCC(X[.], Y%d)[.] =", i);
-      for(j = 0; j < 800; j++)
+      for(j = 22*25; j < 25*25; j++)
       {
         printf(" %lf", pcc[j]);
         printf("\n");
       }
+      printf("*********************************\n");
     }
   }
 
