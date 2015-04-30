@@ -81,7 +81,7 @@ void average (char *prefix);
  * an intermediate DES data, one per guess on a 6-bits subkey. In this example
  * the decision is the computed value of bit index <target_bit> of L15. Each of
  * the 64 decisions is thus 0 or 1.*/
-void decision (uint64_t ct, tr_pcc_context pcc_ctx, int sbox);
+void decision (uint64_t ct, tr_pcc_context *pcc_ctx, int sbox);
 
 /* Filtered_ham_dist: takes two 32 bit numbers and an SBox number and returns
  * the Hamming distance between the two SBOX outputs */
@@ -221,7 +221,7 @@ average (char *prefix)
 }
 
 void
-decision (uint64_t ct, tr_pcc_context pcc_ctx, int sbox)
+decision (uint64_t ct, tr_pcc_context* pcc_ctx, int sbox)
 {
   int g;                        /* Guess */
   float h_d;                    /* Hamming distance (our PCC classes) */
@@ -230,7 +230,6 @@ decision (uint64_t ct, tr_pcc_context pcc_ctx, int sbox)
   uint64_t r16;                 /* R16 (as in DES standard) */
   uint64_t er15;                /* E(R15) = E(L16) */
   uint64_t l15;                 /* L15 (as in DES standard) */
-  uint64_t r14_j, r15_j;
   uint64_t rk;                  /* Value of last round key */
 
 
@@ -245,7 +244,7 @@ decision (uint64_t ct, tr_pcc_context pcc_ctx, int sbox)
       l15 = r16 ^ ( des_p (des_sboxes (er15 ^ rk)));     /* computes hyp. l15 */
 
       h_d = (float) filtered_ham_dist(l15, l16, sbox);      /* Hamming distance between SBoxes outputs */
-      tr_pcc_insert_y(pcc_ctx, g, h_d);     /* Insert realization h_d of rv# g */
+      tr_pcc_insert_y(*pcc_ctx, g, h_d);     /* Insert realization h_d of rv# g in context pcc_ctx */
 
     }                           /* End for guesses */
 }
@@ -255,7 +254,7 @@ filtered_ham_dist (uint64_t r_1, uint64_t r_2, int sbox)
 {
   uint64_t np_r1, np_r2;
 
-  np_r1 = des_n_p(r_1);
+  np_r1 = des_n_p(r_1); /* We undo the P permutation */
   np_r2 = des_n_p(r_2);
 
   return hamming_distance ((np_r1 >> (sbox-1)*4) & UINT64_C (0xf), (np_r2 >> (sbox-1)*4) & UINT64_C (0xf)) ;
@@ -290,7 +289,7 @@ dpa_attack (void)
 
         tr_pcc_insert_x(pcc_ctx, t);      /* insert the trace in the Pearson context */
 
-        decision(ct, pcc_ctx, sbox);      /* fills the PC with Y realizations */
+        decision(ct, &pcc_ctx, sbox);      /* fills the PC with Y realizations */
 
 
 
