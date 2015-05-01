@@ -64,6 +64,7 @@ int target_bit;                 /* Index of target bit. */
 int target_sbox;                /* Index of target SBox. */
 int best_guess;                 /* Best guess */
 int best_idx;                   /* Best argmax */
+uint64_t round_key;
 float best_max;                 /* Best max sample value */
 float *dpa[64];                 /* 64 DPA traces */
 
@@ -139,7 +140,9 @@ main (int argc, char **argv)
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
    ***************************************************************/
+  round_key = 0;
   dpa_attack ();
+  printf("%048llx", round_key);
 
   /*****************************************************************************
    * Print the 64 DPA traces in a data file named dpa.dat. Print corresponding
@@ -269,10 +272,9 @@ dpa_attack (void)
   uint64_t ct;                  /* Ciphertext */
 
   n = tr_number (ctx);          /* Number of traces in context */
-  //for (sbox = 1; sbox <= 8; sbox++) /* For all SBoxes */
-  //{
+  for (sbox = 1; sbox <= 8; sbox++) /* For all SBoxes */
+  {
 
-    sbox=1;
     pcc_ctx = tr_pcc_init(800, 64);   /* 800 samples per power trace, 64 r.v */
     for (i = 0; i < n; i++)       /* For all experiments */
       {
@@ -289,24 +291,26 @@ dpa_attack (void)
       }                           /* End for experiments */
     tr_pcc_consolidate(pcc_ctx);
 
-    for(i = 0; i < 64; i++)
+    uint64_t best_guess, g;
+    for(g = 0; g < 64; g++)
     {
       float *trace;
-      trace = tr_pcc_get_pcc(pcc_ctx, i); /* we get the PCC trace */
-      dpa[i] = tr_new_trace(ctx);
-      tr_acc(ctx, dpa[i], trace);
-      tr_abs(ctx, dpa[i], dpa[i]);
-      max = tr_max(ctx, dpa[i], &idx);
-      if ((max > best_max && idx > 550 && idx < 600) || i==0)
+      trace = tr_pcc_get_pcc(pcc_ctx, g); /* we get the PCC trace */
+      dpa[g] = tr_new_trace(ctx);
+      tr_acc(ctx, dpa[g], trace);
+      tr_abs(ctx, dpa[g], dpa[g]);
+      max = tr_max(ctx, dpa[g], &idx);
+      if ((max > best_max && idx > 550 && idx < 600) || g==0)
       {
         best_max = max;
-        best_guess = i;
+        best_guess = g;
         best_idx = idx;
       }
 
     }
-    tr_plot(ctx, "dpa", 64, best_guess, dpa);
-  //}
+    round_key = round_key | best_guess << (sbox-1)*6;
+
+  }
 
 
     

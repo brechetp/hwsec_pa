@@ -34,4 +34,29 @@ The attack now works (i.e a single subkey is returned by SBox).
 
 2. 4-bit attack
 
-We want to take advantage of the whole information a 6-bit subkey guess provides, i.e. use the 4 bits of the 
+We want to take advantage of the whole information a 6-bit subkey guess provides, i.e. use the 4 bits of the SBox output.
+
+We attack the R register (between the 14th and 15th rounds). Given a SBox, 4 bits are affected by its output. But the P permutation at the f function exit shuflle those bits.
+
+It's easy to unfold the P permutation, and we need to do this to compare r15 and r14, 4 bits at a time.
+
+So, given a hypothetical 6-bit subkey Gi, we compute r14 = l15 = r16 xor f( r15 = l16, Gi) (there are 64 such keys)
+Then, we unfold the P permutation on r14 and r15 to get the ouputs of Sboxes from rounds 14 and 13.
+
+We can then partition our experiences between two classes, dependending on the number of transitions that occured between the rounds 14 and 15 in the R register (Hamming distance between the outputs of the considered SBox).
+
+We could have 4/0 or 4,3 / 1,0 partition. The problem is, we discard a lot of experiences (between 1/2 and 7/8 (!)), which will lead to an increase in the number of experiments needed. But at least, the statistical tool used is simple and easy to implement.
+
+3. PCC
+
+We can improve previous results by taking advantage of the whole information, ie not throwing half of experiments away. Our power consumption model is linear in the number of transitions seen beetween rounds 14 and 15 in the R register (at least in a small - yet existing - part of the power traces).
+
+For a given 6-bit subkey, the power consumed by the encryption process can be written as: P = H_D(r14, r15) * Power(transition) + Noise, Noise being the other rounds consumption.
+
+We then construct a Pearson Correlation Context in which our random variable Xj is the power trace for the experiement #j (800 points), and Yij are the 64 hammind distances between r14 and r15 givent the key Gi.
+
+The trick here is to set those Yij random variables to 800 constant points to be able to compute the coefficent between scalars (hamming distances) and vectors (800 power consumption traces).
+
+4. Conclusion
+
+
