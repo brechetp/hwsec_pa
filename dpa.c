@@ -288,19 +288,19 @@ dpa_attack (void)
     {
       float *trace;
       trace = tr_pcc_get_pcc(pcc_ctx, g); /* we get the PCC trace */
-      dpa[g] = tr_new_trace(ctx);
-      tr_acc(ctx, dpa[g], trace);
-      tr_abs(ctx, dpa[g], dpa[g]);
-      max = tr_max(ctx, dpa[g], &idx);
-      if ((max > best_max) || g==0)
+      dpa[g] = tr_new_trace(ctx); /* We allocate a new trace */
+      tr_acc(ctx, dpa[g], trace); /* We store the PCC trace in the newly allocated trace */
+      tr_abs(ctx, dpa[g], dpa[g]); /* We take its absolute value */
+      max = tr_max(ctx, dpa[g], &idx); /* We take the maximum spike */
+      if ((max > best_max) || g==0) /* If the spike is greater than before */
       {
         best_max = max;
-        best_guess = g;
+        best_guess = g; /* The key must be this one */
         best_idx = idx;
       }
 
     }
-    k16 |= (best_guess << (sbox-1)*6);
+    k16 |= (best_guess << (sbox-1)*6); /* We construct the key */
 
   }
   uint64_t key;    /* 64 bits secret key */
