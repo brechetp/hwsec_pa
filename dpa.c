@@ -64,7 +64,7 @@ int target_bit;                 /* Index of target bit. */
 int target_sbox;                /* Index of target SBox. */
 int best_guess;                 /* Best guess */
 int best_idx;                   /* Best argmax */
-uint64_t round_key;
+uint64_t k16;
 float best_max;                 /* Best max sample value */
 float *dpa[64];                 /* 64 DPA traces */
 
@@ -135,15 +135,13 @@ main (int argc, char **argv)
    * "average.dat" and gnuplot command in file "average.cmd". In order to plot
    * the average power trace, type: $ gnuplot -persist average.cmd
    *****************************************************************************/
-  average ("average");
 
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
    ***************************************************************/
-  round_key = 0;
+  k16 = 0;
   dpa_attack ();
-  printf("%048llx", round_key);
-
+  printf("%012" PRIx64 "\n", k16);
   /*****************************************************************************
    * Print the 64 DPA traces in a data file named dpa.dat. Print corresponding
    * gnuplot commands in a command file named dpa.cmd. All DPA traces are
@@ -156,13 +154,6 @@ main (int argc, char **argv)
   /*****************
    * Print summary *
    *****************/
-  printf ("Target bit: %d\n", target_bit);
-  printf ("Target SBox: %d\n", target_sbox);
-  printf ("Best guess: %d (0x%02x)\n", best_guess, best_guess);
-  printf ("Maximum of DPA trace: %e\n", best_max);
-  printf ("Index of maximum in DPA trace: %d\n", best_idx);
-  printf ("DPA traces stored in file 'dpa.dat'. In order to plot them, type:\n");
-  printf ("$ gnuplot -persist dpa.cmd\n");
 
   /*************************
    * Free allocated traces *
@@ -258,9 +249,8 @@ filtered_ham_dist (uint64_t r_1, uint64_t r_2, int sbox)
 void
 dpa_attack (void)
 {
-  int i, j;                        /* Loop index */
+  int i;                        /* Loop index */
   int n;                        /* Number of traces. */
-  int g;                        /* Guess on a 6-bits subkey */
   int idx;                      /* Argmax (index of sample with maximum value in a trace) */
   int sbox;                     /* SBox # */
 
@@ -300,7 +290,7 @@ dpa_attack (void)
       tr_acc(ctx, dpa[g], trace);
       tr_abs(ctx, dpa[g], dpa[g]);
       max = tr_max(ctx, dpa[g], &idx);
-      if ((max > best_max && idx > 550 && idx < 600) || g==0)
+      if ((max > best_max) || g==0)
       {
         best_max = max;
         best_guess = g;
@@ -308,7 +298,7 @@ dpa_attack (void)
       }
 
     }
-    round_key = round_key | best_guess << (sbox-1)*6;
+    k16 |= (best_guess << (sbox-1)*6);
 
   }
 
