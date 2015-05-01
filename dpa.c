@@ -243,11 +243,11 @@ dpa_attack (void)
 
   float *t;                     /* Power trace */
   float max;                    /* Max sample value in a trace */
-  float *t0[64];                /* Power traces for the zero-sets (one per guess) */
-  float *t1[64];                /* Power traces for the one-sets (one per guess) */
+  float *t0[64];                /* Power traces for the no_transition_sets (one per guess) */
+  float *t1[64];                /* Power traces for the transition_sets (one per guess) */
 
-  int n0[64];                   /* Number of power traces in the zero-sets (one per guess) */
-  int n1[64];                   /* Number of power traces in the one-sets (one per guess) */
+  int n0[64];                   /* Number of power traces in the no_transition_sets (one per guess) */
+  int n1[64];                   /* Number of power traces in the transition_sets (one per guess) */
 
   uint64_t ct;            /* Ciphertext */
 
@@ -257,31 +257,31 @@ dpa_attack (void)
     for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
       {
         dpa[g] = tr_new_trace (ctx);      /* Allocate a DPA trace */
-        t0[g] = tr_new_trace (ctx);       /* Allocate a trace for zero-set */
+        t0[g] = tr_new_trace (ctx);       /* Allocate a trace for no_transition_set */
         tr_init_trace (ctx, t0[g], 0.0);  /* Initialize trace to all zeros */
-        n0[g] = 0;                /* Initialize trace count in zero-set to zero */
-        t1[g] = tr_new_trace (ctx);       /* Allocate a trace for one-set */
+        n0[g] = 0;                /* Initialize trace count in no_transition_set to zero */
+        t1[g] = tr_new_trace (ctx);       /* Allocate a trace for transition_set */
         tr_init_trace (ctx, t1[g], 0.0);  /* Initialize trace to all zeros */
-        n1[g] = 0;                /* Initialize trace count in one-set to zero */
+        n1[g] = 0;                /* Initialize trace count in transition_set to zero */
       }                           /* End for all guesses */
     n = tr_number (ctx);          /* Number of traces in context */
     for (i = 0; i < n; i++)       /* For all experiments */
       {
         t = tr_trace (ctx, i);    /* Get power trace */
         ct = tr_ciphertext (ctx, i);      /* Get ciphertext */
-        decision (ct, d, sbox);         /* Compute the 64 decisions */
+        decision (ct, d, sbox);         /* Compute the 64 decisions, a decision is the Hamming Distance value */
         /* For all guesses (64) */
         for (g = 0; g < 64; g++)
           {
-            if (d[g] == 0 || d[g] == 1)        /* If decision on target bit is zero */
+            if (d[g] == 0 || d[g] == 1)        /* If decision is 0 or 1 transition */
               {
-                tr_acc (ctx, t0[g], t);   /* Accumulate power trace in zero-set */
-                n0[g] += 1;       /* Increment traces count for zero-set */
+                tr_acc (ctx, t0[g], t);   /* Accumulate power trace in no_transition_set */
+                n0[g] += 1;       /* Increment traces count for no_transition_set */
               }
-            else if (d[g] == 4 || d[g] == 3)                  /* If decision on target bit is one */
+            else if (d[g] == 4 || d[g] == 3)                  /* If decision is 3 or 4 transitions */
               {
-                tr_acc (ctx, t1[g], t);   /* Accumulate power trace in one-set */
-                n1[g] += 1;       /* Increment traces count for one-set */
+                tr_acc (ctx, t1[g], t);   /* Accumulate power trace in transition-set */
+                n1[g] += 1;       /* Increment traces count for transition-set */
               }
           }                       /* End for guesses */
       }                           /* End for experiments */
@@ -290,9 +290,9 @@ dpa_attack (void)
     best_idx = 0;                 /* Initialize best argmax (index of maximum sample) */
     for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
       {
-        tr_scalar_div (ctx, t0[g], t0[g], (float) (n0[g]));       /* Normalize zero-set */
-        tr_scalar_div (ctx, t1[g], t1[g], (float) (n1[g]));       /* Normalize zero-set */
-        tr_sub (ctx, dpa[g], t1[g], t0[g]);       /* Compute one-set minus zero-set */
+        tr_scalar_div (ctx, t0[g], t0[g], (float) (n0[g]));       /* Normalize no_transition_set */
+        tr_scalar_div (ctx, t1[g], t1[g], (float) (n1[g]));       /* Normalize transition_set */
+        tr_sub (ctx, dpa[g], t1[g], t0[g]);       /* Compute transition_set minus no_transition_set */
         max = tr_max (ctx, dpa[g], &idx); /* Get max and argmax of DPA trace */
         if (max > best_max || g == 0)     /* If better than current best max (or if first guess) */
           {
