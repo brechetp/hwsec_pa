@@ -64,7 +64,7 @@ int target_bit;                 /* Index of target bit. */
 int target_sbox;                /* Index of target SBox. */
 int best_guess;                 /* Best guess */
 int best_idx;                   /* Best argmax */
-uint64_t round_key;
+uint64_t k16;
 float best_max;                 /* Best max sample value */
 float *dpa[64];                 /* 64 DPA traces */
 
@@ -140,9 +140,9 @@ main (int argc, char **argv)
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
    ***************************************************************/
-  round_key = 0;
+  k16 = 0;
   dpa_attack ();
-  printf("%048llx", round_key);
+  printf("%048llx", k16);
 
   /*****************************************************************************
    * Print the 64 DPA traces in a data file named dpa.dat. Print corresponding
@@ -300,7 +300,7 @@ dpa_attack (void)
       tr_acc(ctx, dpa[g], trace);
       tr_abs(ctx, dpa[g], dpa[g]);
       max = tr_max(ctx, dpa[g], &idx);
-      if ((max > best_max && idx > 550 && idx < 600) || g==0)
+      if ((max > best_max) || g==0)
       {
         best_max = max;
         best_guess = g;
@@ -308,9 +308,17 @@ dpa_attack (void)
       }
 
     }
-    round_key = round_key | best_guess << (sbox-1)*6;
+    k16 |= (best_guess << (sbox-1)*6);
 
   }
+  uint64_t key;    /* 64 bits secret key */
+  uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
+  key = tr_key (ctx); /* Extract 64 bits secret key from context */
+  des_ks (ks, key);   /* Compute key schedule */
+  if (k16 == ks[15])  /* If guessed 16th round key matches actual 16th round key */
+      printf ("We got it!!!\n"); /* Cheers */
+  else
+      printf ("Too bad...\n");   /* Cry */
 
 
     
