@@ -59,10 +59,7 @@ int p_table[32] = {
 };
 
 tr_context ctx;                 /* Trace context (see traces.h) */
-int target_bit;                 /* Index of target bit. */
-uint64_t best_guess;                 /* Best guess */
-int best_idx;                   /* Best argmax */
-float best_max;                 /* Best max sample value */
+uint64_t k16=0;                 /* Round #16 key (48 bits)*/
 float *dpa[64];                 /* 64 DPA traces */
 
 /* A function to allocate cipher texts and power traces, read the
@@ -91,7 +88,7 @@ int
 main (int argc, char **argv)
 {
   int n;                        /* Number of experiments to use. */
-  int g;                        /* Guess on a 6-bits subkey */
+  int g;
 
   /************************************************************************/
   /* Before doing anything else, check the correctness of the DES library */
@@ -129,12 +126,22 @@ main (int argc, char **argv)
    * "average.dat" and gnuplot command in file "average.cmd". In order to plot
    * the average power trace, type: $ gnuplot -persist average.cmd
    *****************************************************************************/
-  average ("average");
+  /* average ("average");*/
 
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
    ***************************************************************/
   dpa_attack ();
+  uint64_t key;    /* 64 bits secret key */
+  uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
+  key = tr_key (ctx); /* Extract 64 bits secret key from context */
+  des_ks (ks, key);   /* Compute key schedule */
+  printf("%012" PRIx64 "\n", k16);
+  if (k16 == ks[15])  /* If guessed 16th round key matches actual 16th round key */
+      printf ("We got it!!!\n"); /* Cheers */
+  else
+      printf ("Too bad...\n");   /* Cry */
+
 
   /*****************************************************************************
    * Print the 64 DPA traces in a data file named dpa.dat. Print corresponding
@@ -148,11 +155,6 @@ main (int argc, char **argv)
   /*****************
    * Print summary *
    *****************/
-  printf ("Target bit: %d\n", target_bit);
-  printf ("Maximum of DPA trace: %e\n", best_max);
-  printf ("Index of maximum in DPA trace: %d\n", best_idx);
-  printf ("DPA traces stored in file 'dpa.dat'. In order to plot them, type:\n");
-  printf ("$ gnuplot -persist dpa.cmd\n");
 
   /*************************
    * Free allocated traces *
@@ -238,8 +240,11 @@ dpa_attack (void)
   int d[64];                    /* Decisions on the target bit */
   int sbox;
 
+  float best_max;
+  int best_idx;
+  uint64_t best_guess;
 
-  uint64_t k16 = 0;    /* Guessed 16th round kddey */
+
 
   float *t;                     /* Power trace */
   float max;                    /* Max sample value in a trace */
@@ -309,13 +314,4 @@ dpa_attack (void)
         tr_free_trace (ctx, t1[g]);
       }
   }
-  uint64_t key;    /* 64 bits secret key */
-  uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
-  key = tr_key (ctx); /* Extract 64 bits secret key from context */
-  des_ks (ks, key);   /* Compute key schedule */
-  printf("%012" PRIx64 "\n", k16);
-  if (k16 == ks[15])  /* If guessed 16th round key matches actual 16th round key */
-      printf ("We got it!!!\n"); /* Cheers */
-  else
-      printf ("Too bad...\n");   /* Cry */
 }
