@@ -2,12 +2,19 @@ The average trace is really clean (since it has been averaged over a lot of expe
 
 We clearly see 8+16+8 clock cycles. The DES encipherment begins at CC # 9 and lasts 16 cycles (matching the 16 rounds of the algorithm)
 
-The target bit (1) correpsonds to the SBox # 4. This is correct.
+The target bit (1) correpsonds to the SBox # 4. This is correct regarding the P permutation.
+
+The best value found by the hack is 2.15e-2, for the guess 54. This value is low compared to average power (scaling to 2). We have a 100 ratio.
+
+The index found is 730. There are 25 points per clock cycle. We consider the 8+15=23rd clock cycle (the last of DES ciphering). 730 matches the clock cyle # 29, this is irrelevant.
+
+The attack is bound to fail if implemented this way.
+
+The dat.cmd plot is interesting. The selected key doesn't seem to stand up from the others. There are pikes everywhere else, the signal to noise ratio (SNR) seems to be fairly low. We can't count on a clear correlation. We certainly haven't guessed 6 bit of the last round.
+
+This is proved by attacking the 32 bits. For a given SBox, different subkeys are found by the program.
 
 
-The traces provided by the attack are not clear, and the attack fails. We observe spikes in several different clock cycles (we should only see them around the 24th cc corresponding to 8 (input) + 16 (rounds)
-
-The attack fails for three main reasons:
 1. The signal/noise ratio is fairly poor
 2. We attack one bit at a time (while 6-bit subkeys generate 4 bits)
 3. The statistical tool used is not the best one (PCC?)
@@ -60,10 +67,19 @@ We can improve previous results by taking advantage of the whole information, ie
 
 For a given 6-bit subkey, the power consumed by the encryption process can be written as: P = H_D(r14, r15) * Power(transition) + Noise, Noise being the other rounds consumption.
 
-We then construct a Pearson Correlation Context in which our random variable Xj is the power trace for the experiement #j (800 points), and Yij are the 64 hammind distances between r14 and r15 givent the key Gi.
+We then construct a Pearson Correlation Context in which our random variable Xj is the power trace for the experiement #j (800 points), and Yij are the 64 hamming distances between r14 and r15 given the key Gi.
 
 The trick here is to set those Yij random variables to 800 constant points to be able to compute the coefficent between scalars (hamming distances) and vectors (800 power consumption traces).
 
 4. Conclusion
+
+
+While the 1 improvement step was working, its automation has not been implemented. Instead, the 2nd and 3rd steps were directly looked at.
+
+They allowed to attack the DES ciphering with a few hundreds experiments.
+
+It could be even more improved: instead of keeping the best correleted key, we could keep the two best keys. Thus, we would have 2^8 = 256 likely keys for the same number of experiments. We could then try them all.
+
+Once the 48-bit is recovered, we can brute force the 8 remaining bit if a given pt,ct is given.
 
 
