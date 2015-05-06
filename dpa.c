@@ -59,6 +59,7 @@ int p_table[32] = {
   22, 11, 4, 25
 };
 
+tr_context ctx;
 uint64_t k16=0;                 /* Round #16 key (48 bits)*/
 int target_bit;                 /* Index of target bit. */
 int target_sbox;                /* Index of target SBox. */
@@ -215,7 +216,6 @@ void
 decision (uint64_t ct, int d[64], int sbox)
 {
   int g;                        /* Guess */
-  float h_d;                    /* Hamming distance (our PCC classes) */
   uint64_t r16l16;              /* R16|L16 (64 bits state register before final permutation) */
   uint64_t l16;                 /* L16 (as in DES standard) */
   uint64_t r16;                 /* R16 (as in DES standard) */
