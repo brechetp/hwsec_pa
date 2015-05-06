@@ -65,7 +65,7 @@ We could have 4/0 or 4,3 / 1,0 partition. The problem is, we discard a lot of ex
 
 We can improve previous results by taking advantage of the whole information, ie not throwing half of experiments away. Our power consumption model is linear in the number of transitions seen beetween rounds 14 and 15 in the R register (at least in a small - yet existing - part of the power traces).
 
-For a given 6-bit subkey, the power consumed by the encryption process can be written as: P = H_D(r14, r15) * Power(transition) + Noise, Noise being the other rounds consumption.
+For a given 6-bit subkey, the power consumed by the encryption process can be written as: P = H_D(r14, r15) * Power(transition) + Noise, Noise being the other rounds and static consumption.
 
 We then construct a Pearson Correlation Context in which our random variable Xj is the power trace for the experiement #j (800 points), and Yij are the 64 hamming distances between r14 and r15 given the key Gi.
 
@@ -81,5 +81,6 @@ They allowed to attack the DES ciphering with a few hundreds experiments.
 It could be even more improved: instead of keeping the best correleted key, we could keep the two best keys. Thus, we would have 2^8 = 256 likely keys for the same number of experiments. We could then try them all.
 
 Once the 48-bit is recovered, we can brute force the 8 remaining bit if a given pt,ct is given.
+
 
 
