@@ -1,0 +1,85 @@
+The average trace is really clean (since it has been averaged over a lot of experiments the noise is very low)
+
+We clearly see 8+16+8 clock cycles. The DES encipherment begins at CC # 9 and lasts 16 cycles (matching the 16 rounds of the algorithm)
+
+The target bit (1) correpsonds to the SBox # 4. This is correct regarding the P permutation.
+
+The best value found by the hack is 2.15e-2, for the guess 54. This value is low compared to average power (scaling to 2). We have a 100 ratio.
+
+The index found is 730. There are 25 points per clock cycle. We consider the 8+15=23rd clock cycle (the last of DES ciphering). 730 matches the clock cyle # 29, this is irrelevant.
+
+The attack is bound to fail if implemented this way.
+
+The dat.cmd plot is interesting. The selected key doesn't seem to stand up from the others. There are pikes everywhere else, the signal to noise ratio (SNR) seems to be fairly low. We can't count on a clear correlation. We certainly haven't guessed 6 bit of the last round.
+
+This is proved by attacking the 32 bits. For a given SBox, different subkeys are found by the program.
+
+
+1. The signal/noise ratio is fairly poor
+2. We attack one bit at a time (while 6-bit subkeys generate 4 bits)
+3. The statistical tool used is not the best one (PCC?)
+
+We will try to improve these points
+
+1. Improve the signal strenght
+
+The attack is done on register LR. We partition traces according to the value of the bit #b (provided as an argument) during the last round (#16).
+The red trace we have (supposely corresponding to the good one) is not that clear, we have spikes elsewhere (consider keeping the spike occuring during CC # 8+15=23 ?).
+The signal/noise ratio is really poor, this is due to the strength of the signal we consider.
+
+By partitioning by the bit value (0 or 1), we face two options with poor resolution.
+
+Case 0: differential average power consumption = 50% * 0->0 + 50% * 1->0 = (I(falling) + I(static)) / 2
+Case 1: 50% * 0->1 + 50% 1->1  = (I(rising) + I(static)) / 2
+
+Since we substract the to partition average traces, our signal is worth (I(rising) - I(falling)) / 2
+
+If, instead, we partition traces according to "there has been a transition" and "there has not been a transition" (between r14 and r15),  the two cases have the following signal strength:
+
+Case transition : 50% * 1->0 + 50% * 1->0  = (I(rising) + I(static)) / 2 + (I(falling) + I(static)) / 2
+Case no transition : 0
+
+So, our signal is now worth (I(rising) + I(falling)) / 2 + I(static) >> (I(rising) - I(falling)) / 2 -- even if I(static) were negligeable
+
+To implement this improvement, we only need to change our partitioning : in the decision table making, we focus on transition (r14 xor r15) regarding the attacked bit (target_bit).
+
+The attack now works (i.e a single subkey is returned by SBox).
+
+
+2. 4-bit attack
+
+We want to take advantage of the whole information a 6-bit subkey guess provides, i.e. use the 4 bits of the SBox output.
+
+We attack the R register (between the 14th and 15th rounds). Given a SBox, 4 bits are affected by its output. But the P permutation at the f function exit shuflle those bits.
+
+It's easy to unfold the P permutation, and we need to do this to compare r15 and r14, 4 bits at a time.
+
+So, given a hypothetical 6-bit subkey Gi, we compute r14 = l15 = r16 xor f( r15 = l16, Gi) (there are 64 such keys)
+Then, we unfold the P permutation on r14 and r15 to get the ouputs of Sboxes from rounds 14 and 13.
+
+We can then partition our experiences between two classes, dependending on the number of transitions that occured between the rounds 14 and 15 in the R register (Hamming distance between the outputs of the considered SBox).
+
+We could have 4/0 or 4,3 / 1,0 partition. The problem is, we discard a lot of experiences (between 1/2 and 7/8 (!)), which will lead to an increase in the number of experiments needed. But at least, the statistical tool used is simple and easy to implement.
+
+3. PCC
+
+We can improve previous results by taking advantage of the whole information, ie not throwing half of experiments away. Our power consumption model is linear in the number of transitions seen beetween rounds 14 and 15 in the R register (at least in a small - yet existing - part of the power traces).
+
+For a given 6-bit subkey, the power consumed by the encryption process can be written as: P = H_D(r14, r15) * Power(transition) + Noise, Noise being the other rounds consumption.
+
+We then construct a Pearson Correlation Context in which our random variable Xj is the power trace for the experiement #j (800 points), and Yij are the 64 hamming distances between r14 and r15 given the key Gi.
+
+The trick here is to set those Yij random variables to 800 constant points to be able to compute the coefficent between scalars (hamming distances) and vectors (800 power consumption traces).
+
+4. Conclusion
+
+
+While the 1 improvement step was working, its automation has not been implemented. Instead, the 2nd and 3rd steps were directly looked at.
+
+They allowed to attack the DES ciphering with a few hundreds experiments.
+
+It could be even more improved: instead of keeping the best correleted key, we could keep the two best keys. Thus, we would have 2^8 = 256 likely keys for the same number of experiments. We could then try them all.
+
+Once the 48-bit is recovered, we can brute force the 8 remaining bit if a given pt,ct is given.
+
+

@@ -39,6 +39,7 @@ information see the LICENCE-fr.txt or LICENSE-en.txt files.
 #include <inttypes.h>
 #include <string.h>
 
+#include <tr_pcc.h>
 #include <utils.h>
 #include <traces.h>
 #include <des.h>
@@ -58,8 +59,12 @@ int p_table[32] = {
   22, 11, 4, 25
 };
 
-tr_context ctx;                 /* Trace context (see traces.h) */
 uint64_t k16=0;                 /* Round #16 key (48 bits)*/
+int target_bit;                 /* Index of target bit. */
+int target_sbox;                /* Index of target SBox. */
+int best_guess;                 /* Best guess */
+int best_idx;                   /* Best argmax */
+float best_max;                 /* Best max sample value */
 float *dpa[64];                 /* 64 DPA traces */
 
 /* A function to allocate cipher texts and power traces, read the
@@ -77,6 +82,8 @@ void average (char *prefix);
  * the decision is the computed value of bit index <target_bit> of L15. Each of
  * the 64 decisions is thus 0 or 1.*/
 void decision (uint64_t ct, int d[64], int sbox);
+
+
 
 /* Apply P. Kocher's DPA algorithm based on decision function. Computes 64 DPA
  * traces dpa[0..63], best_guess (6-bits subkey corresponding to highest DPA
@@ -114,9 +121,6 @@ main (int argc, char **argv)
     {
       ERROR (-1, "invalid number of experiments: %d (shall be greater than 1)", n);
     }
-  /* Target bit is argument #3, convert it to integer and store the result in
-   * variable target_bit. */
-  /* Compute index of corresponding SBox */
   /* Read power traces and ciphertexts. Name of data file is argument #1. n is
    * the number of experiments to use. */
   read_datafile (argv[1], n);
@@ -131,6 +135,7 @@ main (int argc, char **argv)
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
    ***************************************************************/
+  k16 = 0;
   dpa_attack ();
   uint64_t key;    /* 64 bits secret key */
   uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
@@ -210,12 +215,14 @@ void
 decision (uint64_t ct, int d[64], int sbox)
 {
   int g;                        /* Guess */
+  float h_d;                    /* Hamming distance (our PCC classes) */
   uint64_t r16l16;              /* R16|L16 (64 bits state register before final permutation) */
   uint64_t l16;                 /* L16 (as in DES standard) */
   uint64_t r16;                 /* R16 (as in DES standard) */
   uint64_t er15;                /* E(R15) = E(L16) */
   uint64_t l15;                 /* L15 (as in DES standard) */
   uint64_t rk;                  /* Value of last round key */
+
 
   r16l16 = des_ip (ct);         /* Compute R16|L16 */
   l16 = des_right_half (r16l16);        /* Extract right half */
@@ -230,6 +237,8 @@ decision (uint64_t ct, int d[64], int sbox)
     }                           /* End for guesses */
 }
 
+
+
 void
 dpa_attack (void)
 {
@@ -243,8 +252,6 @@ dpa_attack (void)
   float best_max;
   int best_idx;
   uint64_t best_guess;
-
-
 
   float *t;                     /* Power trace */
   float max;                    /* Max sample value in a trace */
