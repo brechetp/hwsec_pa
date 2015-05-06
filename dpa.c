@@ -135,7 +135,7 @@ main (int argc, char **argv)
    * "average.dat" and gnuplot command in file "average.cmd". In order to plot
    * the average power trace, type: $ gnuplot -persist average.cmd
    *****************************************************************************/
-  average ("average");
+/*  average ("average"); */
 
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
@@ -143,6 +143,14 @@ main (int argc, char **argv)
   k16 = 0;
   dpa_attack ();
   printf("%012" PRIx64"\n", k16);
+  uint64_t key;    /* 64 bits secret key */
+  uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
+  key = tr_key (ctx); /* Extract 64 bits secret key from context */
+  des_ks (ks, key);   /* Compute key schedule */
+  if (k16 == ks[15])  /* If guessed 16th round key matches actual 16th round key */
+      printf ("We got it!!!\n"); /* Cheers */
+  else
+      printf ("Too bad...\n");   /* Cry */
 
   /*****************************************************************************
    * Print the 64 DPA traces in a data file named dpa.dat. Print corresponding
@@ -290,7 +298,6 @@ dpa_attack (void)
       trace = tr_pcc_get_pcc(pcc_ctx, g); /* we get the PCC trace */
       dpa[g] = tr_new_trace(ctx); /* We allocate a new trace */
       tr_acc(ctx, dpa[g], trace); /* We store the PCC trace in the newly allocated trace */
-      tr_abs(ctx, dpa[g], dpa[g]); /* We take its absolute value */
       max = tr_max(ctx, dpa[g], &idx); /* We take the maximum spike */
       if ((max > best_max) || g==0) /* If the spike is greater than before */
       {
@@ -303,14 +310,6 @@ dpa_attack (void)
     k16 |= (best_guess << (sbox-1)*6); /* We construct the key */
 
   }
-  uint64_t key;    /* 64 bits secret key */
-  uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
-  key = tr_key (ctx); /* Extract 64 bits secret key from context */
-  des_ks (ks, key);   /* Compute key schedule */
-  if (k16 == ks[15])  /* If guessed 16th round key matches actual 16th round key */
-      printf ("We got it!!!\n"); /* Cheers */
-  else
-      printf ("Too bad...\n");   /* Cry */
 
 
     
