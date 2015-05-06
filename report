@@ -1,3 +1,10 @@
+The average trace is really clean (since it has been averaged over a lot of experiments the noise is very low)
+
+We clearly see 8+16+8 clock cycles. The DES encipherment begins at CC # 9 and lasts 16 cycles (matching the 16 rounds of the algorithm)
+
+The target bit (1) correpsonds to the SBox # 4. This is correct.
+
+
 The traces provided by the attack are not clear, and the attack fails. We observe spikes in several different clock cycles (we should only see them around the 24th cc corresponding to 8 (input) + 16 (rounds)
 
 The attack fails for three main reasons:
