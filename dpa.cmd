@@ -43,8 +43,8 @@ plot \
 'dpa.dat' index 41 notitle with lines linecolor 3,\
 'dpa.dat' index 42 notitle with lines linecolor 3,\
 'dpa.dat' index 43 notitle with lines linecolor 3,\
+'dpa.dat' index 44 notitle with lines linecolor 3,\
 'dpa.dat' index 45 notitle with lines linecolor 3,\
-'dpa.dat' index 46 notitle with lines linecolor 3,\
 'dpa.dat' index 47 notitle with lines linecolor 3,\
 'dpa.dat' index 48 notitle with lines linecolor 3,\
 'dpa.dat' index 49 notitle with lines linecolor 3,\
@@ -62,4 +62,4 @@ plot \
 'dpa.dat' index 61 notitle with lines linecolor 3,\
 'dpa.dat' index 62 notitle with lines linecolor 3,\
 'dpa.dat' index 63 notitle with lines linecolor 3,\
-'dpa.dat' index 44 title 'Trace #44 (0x2c)' with lines linecolor 1
+'dpa.dat' index 46 title 'Trace #46 (0x2e)' with lines linecolor 1

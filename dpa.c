@@ -39,7 +39,6 @@ information see the LICENCE-fr.txt or LICENSE-en.txt files.
 #include <inttypes.h>
 #include <string.h>
 
-#include <tr_pcc.h>
 #include <utils.h>
 #include <traces.h>
 #include <des.h>
@@ -64,7 +63,6 @@ int target_bit;                 /* Index of target bit. */
 int target_sbox;                /* Index of target SBox. */
 int best_guess;                 /* Best guess */
 int best_idx;                   /* Best argmax */
-uint64_t k16;
 float best_max;                 /* Best max sample value */
 float *dpa[64];                 /* 64 DPA traces */
 
@@ -82,12 +80,7 @@ void average (char *prefix);
  * an intermediate DES data, one per guess on a 6-bits subkey. In this example
  * the decision is the computed value of bit index <target_bit> of L15. Each of
  * the 64 decisions is thus 0 or 1.*/
-void decision (uint64_t ct, tr_pcc_context *pcc_ctx, int sbox);
-
-/* Filtered_ham_dist: takes two 32 bit numbers and an SBox number and returns
- * the Hamming distance between the two SBOX outputs */
-
-int filtered_ham_dist (uint64_t r_1, uint64_t r2, int sbox);
+void decision (uint64_t ct, int d[64]);
 
 /* Apply P. Kocher's DPA algorithm based on decision function. Computes 64 DPA
  * traces dpa[0..63], best_guess (6-bits subkey corresponding to highest DPA
@@ -114,7 +107,7 @@ main (int argc, char **argv)
   /*************************************/
   /* If invalid number of arguments (including program name), exit with error
    * message. */
-  if (argc != 3)
+  if (argc != 4)
     {
       ERROR (-1, "usage: dpa <file> <n> <b>\n  <file>: name of the traces file in HWSec format\n          (e.g. /datas/teaching/courses/HWSec/labs/data/HWSecTraces10000x00800.hws)\n  <n>: number of experiments to use\n  <b>: index of target bit in L15 (1 to 32, as in DES standard)\n");
     }
@@ -125,7 +118,15 @@ main (int argc, char **argv)
     {
       ERROR (-1, "invalid number of experiments: %d (shall be greater than 1)", n);
     }
+  /* Target bit is argument #3, convert it to integer and store the result in
+   * variable target_bit. */
+  target_bit = atoi (argv[3]);
+  if (target_bit < 1 || target_bit > 32)        /* If invalid target bit index. */
+    {
+      ERROR (-1, "invalid target bit index: %d (shall be between 1 and 32 included)", target_bit);
+    }
   /* Compute index of corresponding SBox */
+  target_sbox = (p_table[target_bit - 1] - 1) / 4 + 1;
   /* Read power traces and ciphertexts. Name of data file is argument #1. n is
    * the number of experiments to use. */
   read_datafile (argv[1], n);
@@ -140,9 +141,7 @@ main (int argc, char **argv)
   /***************************************************************
    * Attack target bit in L15=R14 with P. Kocher's DPA technique *
    ***************************************************************/
-  k16 = 0;
   dpa_attack ();
-  printf("%012" PRIx64"\n", k16);
 
   /*****************************************************************************
    * Print the 64 DPA traces in a data file named dpa.dat. Print corresponding
@@ -152,10 +151,18 @@ main (int argc, char **argv)
    * and heaxdecimal forms of the 6 bits best guess.
    *****************************************************************************/
   /* Plot DPA traces in dpa.dat, gnuplot commands in dpa.cmd */
+  tr_plot (ctx, "dpa", 64, best_guess, dpa);
 
   /*****************
    * Print summary *
    *****************/
+  printf ("Target bit: %d\n", target_bit);
+  printf ("Target SBox: %d\n", target_sbox);
+  printf ("Best guess: %d (0x%02x)\n", best_guess, best_guess);
+  printf ("Maximum of DPA trace: %e\n", best_max);
+  printf ("Index of maximum in DPA trace: %d\n", best_idx);
+  printf ("DPA traces stored in file 'dpa.dat'. In order to plot them, type:\n");
+  printf ("$ gnuplot -persist dpa.cmd\n");
 
   /*************************
    * Free allocated traces *
@@ -208,17 +215,15 @@ average (char *prefix)
 }
 
 void
-decision (uint64_t ct, tr_pcc_context* pcc_ctx, int sbox)
+decision (uint64_t ct, int d[64])
 {
   int g;                        /* Guess */
-  float h_d;                    /* Hamming distance (our PCC classes) */
   uint64_t r16l16;              /* R16|L16 (64 bits state register before final permutation) */
   uint64_t l16;                 /* L16 (as in DES standard) */
   uint64_t r16;                 /* R16 (as in DES standard) */
   uint64_t er15;                /* E(R15) = E(L16) */
   uint64_t l15;                 /* L15 (as in DES standard) */
   uint64_t rk;                  /* Value of last round key */
-
 
   r16l16 = des_ip (ct);         /* Compute R16|L16 */
   l16 = des_right_half (r16l16);        /* Extract right half */
@@ -228,90 +233,81 @@ decision (uint64_t ct, tr_pcc_context* pcc_ctx, int sbox)
    * subkeys equal to current guess g (nice trick, isn't it?). */
   for (g = 0, rk = UINT64_C (0); g < 64; g++, rk += UINT64_C (0x041041041041))
     {
-      l15 = r16 ^ ( des_p (des_sboxes (er15 ^ rk)));     /* computes hyp. l15 */
-
-      h_d = (float) filtered_ham_dist(l15, l16, sbox);      /* Hamming distance between SBoxes outputs */
-      tr_pcc_insert_y(*pcc_ctx, g, h_d);     /* Insert realization h_d of rv# g in context pcc_ctx */
-
+      l15 = r16 ^ des_p (des_sboxes (er15 ^ rk));       /* Compute L15 */
+      d[g] = hamming_distance(((l15 >> (32 - target_bit)) & UINT64_C (1)), (l16 >> (32 - target_bit)) & UINT64_C (1)); /* Extract value of target bit */
     }                           /* End for guesses */
 }
-
-int
-filtered_ham_dist (uint64_t r_1, uint64_t r_2, int sbox)
-{
-  uint64_t np_r1, np_r2;
-
-  np_r1 = des_n_p(r_1); /* We undo the P permutation */
-  np_r2 = des_n_p(r_2);
-
-  return hamming_distance ((np_r1 >> (sbox-1)*4) & UINT64_C (0xf), (np_r2 >> (sbox-1)*4) & UINT64_C (0xf)) ;
-}
-
 
 void
 dpa_attack (void)
 {
   int i;                        /* Loop index */
   int n;                        /* Number of traces. */
+  int g;                        /* Guess on a 6-bits subkey */
   int idx;                      /* Argmax (index of sample with maximum value in a trace) */
-  int sbox;                     /* SBox # */
+  int d[64];                    /* Decisions on the target bit */
 
   float *t;                     /* Power trace */
   float max;                    /* Max sample value in a trace */
+  float *t0[64];                /* Power traces for the zero-sets (one per guess) */
+  float *t1[64];                /* Power traces for the one-sets (one per guess) */
 
-  tr_pcc_context pcc_ctx;
+  int n0[64];                   /* Number of power traces in the zero-sets (one per guess) */
+  int n1[64];                   /* Number of power traces in the one-sets (one per guess) */
 
   uint64_t ct;                  /* Ciphertext */
 
-  n = tr_number (ctx);          /* Number of traces in context */
-  for (sbox = 1; sbox <= 8; sbox++) /* For all SBoxes */
-  {
-
-    pcc_ctx = tr_pcc_init(800, 64);   /* 800 samples per power trace, 64 r.v */
-    for (i = 0; i < n; i++)       /* For all experiments */
-      {
-        t = tr_trace (ctx, i);    /* Get power trace */
-        ct = tr_ciphertext (ctx, i);      /* Get ciphertext */
-
-        tr_pcc_insert_x(pcc_ctx, t);      /* insert the trace in the Pearson context */
-
-        decision(ct, &pcc_ctx, sbox);      /* fills the PC with Y realizations */
-
-
-
-
-      }                           /* End for experiments */
-    tr_pcc_consolidate(pcc_ctx);
-
-    uint64_t best_guess, g;
-    for(g = 0; g < 64; g++)
+  for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
     {
-      float *trace;
-      trace = tr_pcc_get_pcc(pcc_ctx, g); /* we get the PCC trace */
-      dpa[g] = tr_new_trace(ctx); /* We allocate a new trace */
-      tr_acc(ctx, dpa[g], trace); /* We store the PCC trace in the newly allocated trace */
-      tr_abs(ctx, dpa[g], dpa[g]); /* We take its absolute value */
-      max = tr_max(ctx, dpa[g], &idx); /* We take the maximum spike */
-      if ((max > best_max) || g==0) /* If the spike is greater than before */
-      {
-        best_max = max;
-        best_guess = g; /* The key must be this one */
-        best_idx = idx;
-      }
-
+      dpa[g] = tr_new_trace (ctx);      /* Allocate a DPA trace */
+      t0[g] = tr_new_trace (ctx);       /* Allocate a trace for zero-set */
+      tr_init_trace (ctx, t0[g], 0.0);  /* Initialize trace to all zeros */
+      n0[g] = 0;                /* Initialize trace count in zero-set to zero */
+      t1[g] = tr_new_trace (ctx);       /* Allocate a trace for one-set */
+      tr_init_trace (ctx, t1[g], 0.0);  /* Initialize trace to all zeros */
+      n1[g] = 0;                /* Initialize trace count in one-set to zero */
+    }                           /* End for all guesses */
+  n = tr_number (ctx);          /* Number of traces in context */
+  for (i = 0; i < n; i++)       /* For all experiments */
+    {
+      t = tr_trace (ctx, i);    /* Get power trace */
+      ct = tr_ciphertext (ctx, i);      /* Get ciphertext */
+      decision (ct, d);         /* Compute the 64 decisions */
+      /* For all guesses (64) */
+      for (g = 0; g < 64; g++)
+        {
+          if (d[g] == 0)        /* If decision on target bit is zero */
+            {
+              tr_acc (ctx, t0[g], t);   /* Accumulate power trace in zero-set */
+              n0[g] += 1;       /* Increment traces count for zero-set */
+            }
+          else                  /* If decision on target bit is one */
+            {
+              tr_acc (ctx, t1[g], t);   /* Accumulate power trace in one-set */
+              n1[g] += 1;       /* Increment traces count for one-set */
+            }
+        }                       /* End for guesses */
+    }                           /* End for experiments */
+  best_guess = 0;               /* Initialize best guess */
+  best_max = 0.0;               /* Initialize best maximum sample */
+  best_idx = 0;                 /* Initialize best argmax (index of maximum sample) */
+  for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
+    {
+      tr_scalar_div (ctx, t0[g], t0[g], (float) (n0[g]));       /* Normalize zero-set */
+      tr_scalar_div (ctx, t1[g], t1[g], (float) (n1[g]));       /* Normalize zero-set */
+      tr_sub (ctx, dpa[g], t1[g], t0[g]);       /* Compute one-set minus zero-set */
+      max = tr_max (ctx, dpa[g], &idx); /* Get max and argmax of DPA trace */
+      if (max > best_max || g == 0)     /* If better than current best max (or if first guess) */
+        {
+          best_max = max;       /* Overwrite best max with new one */
+          best_idx = idx;       /* Overwrite best argmax with new one */
+          best_guess = g;       /* Overwrite best guess with new one */
+        }
+    }                           /* End for all guesses */
+  /* Free allocated traces */
+  for (g = 0; g < 64; g++)      /* For all guesses for 6-bits subkey */
+    {
+      tr_free_trace (ctx, t0[g]);
+      tr_free_trace (ctx, t1[g]);
     }
-    k16 |= (best_guess << (sbox-1)*6); /* We construct the key */
-
-  }
-  uint64_t key;    /* 64 bits secret key */
-  uint64_t ks[16]; /* Key schedule (array of 16 round keys) */
-  key = tr_key (ctx); /* Extract 64 bits secret key from context */
-  des_ks (ks, key);   /* Compute key schedule */
-  if (k16 == ks[15])  /* If guessed 16th round key matches actual 16th round key */
-      printf ("We got it!!!\n"); /* Cheers */
-  else
-      printf ("Too bad...\n");   /* Cry */
-
-
-    
 }
